@@ -2,23 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
-
-typedef struct {
-   char *data;
-   int length;
-} String;
-
-void print(String s)
-{
-   for (int i = 0; i < s.length; i++)
-      printf("%c", s.data[i]);
-}
-
-void println(String s)
-{
-   print(s);
-   printf("\n");
-}
+#include "utils.c"
 
 String RegisterNames[8][2] = {
    {{"al", 2}, {"ax", 2}},
@@ -31,13 +15,13 @@ String RegisterNames[8][2] = {
    {{"bh", 2}, {"di", 2}},
 };
 
-struct MOV
+struct MOVRegReg
 {
    uint8_t opcode_d_w;
    uint8_t mod_reg_rm;
 };
 
-void decode_MOVRegReg(struct MOV *mov)
+void decode_MOVRegReg(struct MOVRegReg *mov)
 {
    uint8_t opcode = mov->opcode_d_w >> 2;
    assert(opcode == 0x22);
@@ -57,9 +41,22 @@ void decode_MOVRegReg(struct MOV *mov)
    printf("\n");
 }
 
+int decode_MOV(uint8_t *instruction)
+{
+   int instr_size = 0;
+   if (*instruction >> 2 == 0x22)
+   {
+      instr_size = 2;
+      decode_MOVRegReg((struct MOVRegReg *)instruction);
+   }
+   else
+      assert(0);
+   return instr_size;
+}
+
 void unit_tests(void)
 {
-   assert(sizeof(struct MOV) == 2);
+   assert(sizeof(struct MOVRegReg) == 2);
 }
 
 int main(int argc, char **argv)
@@ -74,11 +71,19 @@ int main(int argc, char **argv)
    FILE *f = fopen(objectfile, "r");
    assert(f);
 
+   const int BUFSIZE = 1000;
+   uint8_t *filedata = malloc(BUFSIZE);
+   int filesize = readentirefile(f, filedata, BUFSIZE);
+
    puts("bits 16");
-   struct MOV mov;
-   while(fread(&mov, sizeof(struct MOV), 1, f))
+   int i = 0;
+   while (i < filesize)
    {
-      decode_MOVRegReg(&mov);
+      int instr_size = decode_MOV(&filedata[i]);
+      assert(instr_size);
+      i += instr_size;
    }
+
+   free(filedata);
    return 0;
 }
