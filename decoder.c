@@ -41,6 +41,27 @@ void decode_MOVRegReg(struct MOVRegReg *mov)
    printf("\n");
 }
 
+struct MOVImmReg
+{
+   uint8_t opcode_w_reg;
+   uint8_t data;
+   uint8_t dataifwide;
+};
+
+int decode_MOVImmReg(struct MOVImmReg *mov)
+{
+   uint8_t w = (mov->opcode_w_reg >> 3) & 1;
+   uint8_t reg = mov->opcode_w_reg & 0x7;
+   printf("mov ");
+   print(RegisterNames[reg][w]);
+   printf(", ");
+   printf("%d", mov->data + w * (mov->dataifwide << 8));
+   printf("\n");
+
+   int instr_size = w ? 3 : 2;
+   return instr_size;
+}
+
 int decode_MOV(uint8_t *instruction)
 {
    int instr_size = 0;
@@ -48,6 +69,10 @@ int decode_MOV(uint8_t *instruction)
    {
       instr_size = 2;
       decode_MOVRegReg((struct MOVRegReg *)instruction);
+   }
+   else if (*instruction >> 4 == 0xB)
+   {
+      instr_size = decode_MOVImmReg((struct MOVImmReg *)instruction);
    }
    else
       assert(0);
