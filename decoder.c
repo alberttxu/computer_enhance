@@ -15,6 +15,17 @@ String RegisterNames[8][2] = {
    {{"bh", 2}, {"di", 2}},
 };
 
+String EffectiveAddressTable[8] = {
+   {"bx+si", 5},
+   {"bx+di", 5},
+   {"bp+si", 5},
+   {"bp+di", 5},
+   {"si", 2},
+   {"di", 2},
+   {"bp", 2},
+   {"bx", 2},
+};
+
 struct MOVRegReg
 {
    uint8_t opcode_d_w;
@@ -39,6 +50,60 @@ void decode_MOVRegReg(struct MOVRegReg *mov)
    printf(", ");
    print(RegisterNames[src][w]);
    printf("\n");
+}
+
+struct MOVRegMem
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+   uint8_t displo;
+   uint8_t disphi;
+};
+
+int decode_MOVRegMem(struct MOVRegMem *mov)
+{
+   int instr_size = 0;
+   uint8_t opcode = mov->opcode_d_w >> 2;
+   assert(opcode == 0x22);
+   uint8_t mod = mov->mod_reg_rm >> 6;
+   instr_size = 2 + mod;
+   uint8_t d = (mov->opcode_d_w >> 1) & 1;
+   uint8_t w = mov->opcode_d_w & 1;
+   uint8_t reg = (mov->mod_reg_rm >> 3) & 0x7;
+   uint8_t rm = mov->mod_reg_rm & 0x7;
+   int disp = 0;
+   if (mod == 1)
+      disp = mov->displo;
+   else if (mod == 2)
+      disp = mov->displo + 256 * mov->disphi;
+
+   printf("mov ");
+   if (d)
+   {
+      print(RegisterNames[reg][w]);
+      printf(", ");
+      printf("[");
+      print(EffectiveAddressTable[rm]);
+      if (disp)
+      {
+         printf("+%d", disp);
+      }
+      printf("]");
+   }
+   else
+   {
+      printf("[");
+      print(EffectiveAddressTable[rm]);
+      if (disp)
+      {
+         printf("+%d", disp);
+      }
+      printf("]");
+      printf(", ");
+      print(RegisterNames[reg][w]);
+   }
+   printf("\n");
+   return instr_size;
 }
 
 struct MOVImmReg
@@ -67,8 +132,21 @@ int decode_MOV(uint8_t *instruction)
    int instr_size = 0;
    if (*instruction >> 2 == 0x22)
    {
-      instr_size = 2;
-      decode_MOVRegReg((struct MOVRegReg *)instruction);
+      uint8_t mod = (instruction[1] >> 6) & 3;
+      switch (mod)
+      {
+         case 0:
+         case 1:
+         case 2:
+            instr_size = decode_MOVRegMem((struct MOVRegMem *)instruction);
+            break;
+         case 3:
+            instr_size = 2;
+            decode_MOVRegReg((struct MOVRegReg *)instruction);
+            break;
+         default:
+            assert(0);
+      }
    }
    else if (*instruction >> 4 == 0xB)
    {
