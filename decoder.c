@@ -60,6 +60,21 @@ struct MOVRegMem
    uint8_t disphi;
 };
 
+void printMem(uint8_t rm, int disp)
+{
+   printf("[");
+   print(EffectiveAddressTable[rm]);
+   if (disp > 0)
+   {
+      printf("+%d", disp);
+   }
+   else if (disp < 0)
+   {
+      printf("%d", disp);
+   }
+   printf("]");
+}
+
 int decode_MOVRegMem(struct MOVRegMem *mov)
 {
    int instr_size = 0;
@@ -73,32 +88,29 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
    uint8_t rm = mov->mod_reg_rm & 0x7;
    int disp = 0;
    if (mod == 1)
-      disp = mov->displo;
+      disp = *(int8_t *)&mov->displo;
    else if (mod == 2)
-      disp = mov->displo + 256 * mov->disphi;
+      disp = *(int16_t *)&mov->displo;
 
    printf("mov ");
    if (d)
    {
       print(RegisterNames[reg][w]);
       printf(", ");
-      printf("[");
-      print(EffectiveAddressTable[rm]);
-      if (disp)
+      if (mod == 0 && rm == 6)
       {
-         printf("+%d", disp);
+         instr_size = 4;
+         int directaddress = *(int16_t *)&mov->displo;
+         printf("[%d]", directaddress);
       }
-      printf("]");
+      else
+      {
+         printMem(rm, disp);
+      }
    }
    else
    {
-      printf("[");
-      print(EffectiveAddressTable[rm]);
-      if (disp)
-      {
-         printf("+%d", disp);
-      }
-      printf("]");
+      printMem(rm, disp);
       printf(", ");
       print(RegisterNames[reg][w]);
    }
@@ -109,8 +121,8 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
 struct MOVImmReg
 {
    uint8_t opcode_w_reg;
-   uint8_t data;
-   uint8_t dataifwide;
+   uint8_t datalo;
+   uint8_t datahi;
 };
 
 int decode_MOVImmReg(struct MOVImmReg *mov)
@@ -120,11 +132,117 @@ int decode_MOVImmReg(struct MOVImmReg *mov)
    printf("mov ");
    print(RegisterNames[reg][w]);
    printf(", ");
-   printf("%d", mov->data + w * (mov->dataifwide << 8));
+   printf("%d", mov->datalo + w * (mov->datahi << 8));
    printf("\n");
 
    int instr_size = w ? 3 : 2;
    return instr_size;
+}
+
+struct MOVImmRegMem
+{
+   uint8_t opcode_w;
+   uint8_t mod_000_rm;
+   uint8_t displo;
+   uint8_t disphi;
+   uint8_t datalo;
+   uint8_t datahi;
+};
+
+int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
+{
+   int instr_size = 0;
+   assert((mov->opcode_w >> 1) == 0x63);
+   assert(((mov->mod_000_rm >> 3) & 7) == 0);
+   uint8_t w = mov->opcode_w & 1;
+   uint8_t mod = (mov->mod_000_rm >> 6) & 3;
+   uint8_t rm = mov->mod_000_rm & 7;
+
+   if (mod == 0)
+   {
+      printf("mov ");
+      printMem(rm, 0);
+      printf(", ");
+      int imm;
+      if (w)
+      {
+      }
+      else
+      {
+         instr_size = 3;
+         imm = mov->displo;
+         printf("byte %d", imm);
+      }
+      printf("\n");
+   }
+   else if (mod == 2)
+   {
+      printf("mov ");
+      int disp = *(int16_t *)&mov->displo;
+      printMem(rm, disp);
+      printf(", ");
+      int imm;
+      if (w)
+      {
+         instr_size = 6;
+         imm = mov->datalo + 256 * mov->datahi;
+         printf("word %d", imm);
+      }
+      else
+      {
+      }
+      printf("\n");
+   }
+   return instr_size;
+}
+
+struct MOVMemAccum
+{
+   uint8_t opcode_w;
+   uint8_t addrlo;
+   uint8_t addrhi;
+};
+
+void decode_MOVMemAccum(struct MOVMemAccum *mov)
+{
+   uint8_t w = mov->opcode_w & 1;
+   printf("mov ");
+   int addr;
+   if (w)
+   {
+      addr = *(int16_t *)&mov->addrlo;
+      printf("ax");
+   }
+   else
+   {
+      addr = mov->addrlo;
+      printf("al");
+   }
+   printf(", ");
+   printf("[%d]", addr);
+   printf("\n");
+}
+
+void decode_MOVAccumMem(struct MOVMemAccum *mov)
+{
+   uint8_t w = mov->opcode_w & 1;
+   printf("mov ");
+   int addr;
+   if (w)
+   {
+      addr = *(int16_t *)&mov->addrlo;
+      printf("[%d]", addr);
+      printf(", ");
+      printf("ax");
+   }
+   else
+   {
+      addr = mov->addrlo;
+      printf("[%d]", addr);
+      printf(", ");
+      printf("al");
+   }
+   printf("\n");
 }
 
 int decode_MOV(uint8_t *instruction)
@@ -152,8 +270,25 @@ int decode_MOV(uint8_t *instruction)
    {
       instr_size = decode_MOVImmReg((struct MOVImmReg *)instruction);
    }
+   else if (*instruction >> 1 == 0x63)
+   {
+      instr_size = decode_MOVImmRegMem((struct MOVImmRegMem *)instruction);
+   }
+   else if (*instruction >> 1 << 1 == 0xa0)
+   {
+      instr_size = 3;
+      decode_MOVMemAccum((struct MOVMemAccum *)instruction);
+   }
+   else if (*instruction >> 1 << 1 == 0xa2)
+   {
+      instr_size = 3;
+      decode_MOVAccumMem((struct MOVMemAccum *)instruction);
+   }
    else
-      assert(0);
+   {
+      fprintf(stderr, "unimplemented MOV; first byte = 0x%x\n", *instruction);
+      exit(1);
+   }
    return instr_size;
 }
 
