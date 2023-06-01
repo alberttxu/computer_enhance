@@ -992,6 +992,286 @@ int decode_CMPImmAccum(struct CMPImmAccum *cmp)
    return instr_size;
 }
 
+struct JE
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JE(struct JE *je)
+{
+   assert(je->opcode == 0x74);
+   printf("je %d\n", je->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JNZ
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JNZ(struct JNZ *jnz)
+{
+   assert(jnz->opcode == 0x75);
+   printf("jnz %d\n", jnz->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JL
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JL(struct JL *jl)
+{
+   assert(jl->opcode == 0x7c);
+   printf("jl %d\n", jl->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JLE
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JLE(struct JLE *jle)
+{
+   assert(jle->opcode == 0x7e);
+   printf("jle %d\n", jle->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JB
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JB(struct JB *jb)
+{
+   assert(jb->opcode == 0x72);
+   printf("jb %d\n", jb->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JBE
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JBE(struct JBE *jbe)
+{
+   assert(jbe->opcode == 0x76);
+   printf("jbe %d\n", jbe->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JP
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JP(struct JP *jp)
+{
+   assert(jp->opcode == 0x7a);
+   printf("jp %d\n", jp->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JO
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JO(struct JO *jo)
+{
+   assert(jo->opcode == 0x70);
+   printf("jo %d\n", jo->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JS
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JS(struct JS *js)
+{
+   assert(js->opcode == 0x78);
+   printf("js %d\n", js->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JGE
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JGE(struct JGE *jge)
+{
+   assert(jge->opcode == 0x7d);
+   printf("jge %d\n", jge->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JG
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JG(struct JG *jg)
+{
+   assert(jg->opcode == 0x7f);
+   printf("jg %d\n", jg->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JNB
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JNB(struct JNB *jnb)
+{
+   assert(jnb->opcode == 0x73);
+   printf("jnb %d\n", jnb->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JA
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JA(struct JA *ja)
+{
+   assert(ja->opcode == 0x77);
+   printf("ja %d\n", ja->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JNP
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JNP(struct JNP *jnp)
+{
+   assert(jnp->opcode == 0x7b);
+   printf("jnp %d\n", jnp->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JNO
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JNO(struct JNO *jno)
+{
+   assert(jno->opcode == 0x71);
+   printf("jno %d\n", jno->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JNS
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JNS(struct JNS *jns)
+{
+   assert(jns->opcode == 0x79);
+   printf("jns %d\n", jns->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct LOOP
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_LOOP(struct LOOP *loop)
+{
+   assert(loop->opcode == 0xe2);
+   printf("loop %d\n", loop->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct LOOPZ
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_LOOPZ(struct LOOPZ *loopz)
+{
+   assert(loopz->opcode == 0xe1);
+   printf("loopz %d\n", loopz->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct LOOPNZ
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_LOOPNZ(struct LOOPNZ *loopnz)
+{
+   assert(loopnz->opcode == 0xe0);
+   printf("loopnz %d\n", loopnz->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
+struct JCXZ
+{
+   uint8_t opcode;
+   int8_t offset;
+};
+
+int decode_JCXZ(struct JCXZ *jcxz)
+{
+   assert(jcxz->opcode == 0xe3);
+   printf("jcxz %d\n", jcxz->offset);
+   int instr_size = 2;
+   return instr_size;
+}
+
 int decode_instruction(uint8_t *instruction)
 {
    int instr_size = 0;
@@ -1104,6 +1384,66 @@ int decode_instruction(uint8_t *instruction)
 
    else if (*instruction >> 1 == 30)
       instr_size = decode_CMPImmAccum((struct CMPImmAccum *)instruction);
+
+   else if (*instruction == 0x74)
+      instr_size = decode_JE((struct JE *)instruction);
+
+   else if (*instruction == 0x75)
+      instr_size = decode_JNZ((struct JNZ *)instruction);
+
+   else if (*instruction == 0x7c)
+      instr_size = decode_JL((struct JL *)instruction);
+
+   else if (*instruction == 0x7e)
+      instr_size = decode_JLE((struct JLE *)instruction);
+
+   else if (*instruction == 0x72)
+      instr_size = decode_JB((struct JB *)instruction);
+
+   else if (*instruction == 0x76)
+      instr_size = decode_JBE((struct JBE *)instruction);
+
+   else if (*instruction == 0x7a)
+      instr_size = decode_JP((struct JP *)instruction);
+
+   else if (*instruction == 0x70)
+      instr_size = decode_JO((struct JO *)instruction);
+
+   else if (*instruction == 0x78)
+      instr_size = decode_JS((struct JS *)instruction);
+
+   else if (*instruction == 0x7d)
+      instr_size = decode_JGE((struct JGE *)instruction);
+
+   else if (*instruction == 0x7f)
+      instr_size = decode_JG((struct JG *)instruction);
+
+   else if (*instruction == 0x73)
+      instr_size = decode_JNB((struct JNB *)instruction);
+
+   else if (*instruction == 0x77)
+      instr_size = decode_JA((struct JA *)instruction);
+
+   else if (*instruction == 0x7b)
+      instr_size = decode_JNP((struct JNP *)instruction);
+
+   else if (*instruction == 0x71)
+      instr_size = decode_JNO((struct JNO *)instruction);
+
+   else if (*instruction == 0x79)
+      instr_size = decode_JNS((struct JNS *)instruction);
+
+   else if (*instruction == 0xe2)
+      instr_size = decode_LOOP((struct LOOP *)instruction);
+
+   else if (*instruction == 0xe1)
+      instr_size = decode_LOOPZ((struct LOOPZ *)instruction);
+
+   else if (*instruction == 0xe0)
+      instr_size = decode_LOOPNZ((struct LOOPNZ *)instruction);
+
+   else if (*instruction == 0xe3)
+      instr_size = decode_JCXZ((struct JCXZ *)instruction);
 
    else
    {
