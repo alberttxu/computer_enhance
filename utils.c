@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 
 // debug macros
 #define str(x) #x
