@@ -7,6 +7,9 @@ listing38 \
 listing39 \
 listing40 \
 listing41_nojumps \
+listing43 \
+listing44 \
+listing45 \
 "
 
 sh build.sh

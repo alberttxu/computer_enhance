@@ -4,6 +4,163 @@
 #include <assert.h>
 #include "utils.c"
 
+struct CPU_Registers
+{
+   uint16_t ax;
+   uint16_t bx;
+   uint16_t cx;
+   uint16_t dx;
+   uint16_t sp;
+   uint16_t bp;
+   uint16_t si;
+   uint16_t di;
+   // segment registers
+   uint16_t es;
+   uint16_t cs;
+   uint16_t ss;
+   uint16_t ds;
+} registers;
+
+void printRegisters(void)
+{
+   printf("; ax: 0x%04x\n", registers.ax);
+   printf("; bx: 0x%04x\n", registers.bx);
+   printf("; cx: 0x%04x\n", registers.cx);
+   printf("; dx: 0x%04x\n", registers.dx);
+   printf("; sp: 0x%04x\n", registers.sp);
+   printf("; bp: 0x%04x\n", registers.bp);
+   printf("; si: 0x%04x\n", registers.si);
+   printf("; di: 0x%04x\n", registers.di);
+   printf("; es: 0x%04x\n", registers.es);
+   printf("; cs: 0x%04x\n", registers.cs);
+   printf("; ss: 0x%04x\n", registers.ss);
+   printf("; ds: 0x%04x\n", registers.ds);
+}
+
+int getReg(int reg, int w)
+{
+   int val = 0;
+   if (w)
+   {
+      if (reg == 0)
+         val = registers.ax;
+      else if (reg == 1)
+         val = registers.cx;
+      else if (reg == 2)
+         val = registers.dx;
+      else if (reg == 3)
+         val = registers.bx;
+      else if (reg == 4)
+         val = registers.sp;
+      else if (reg == 5)
+         val = registers.bp;
+      else if (reg == 6)
+         val = registers.si;
+      else if (reg == 7)
+         val = registers.di;
+      else
+         assert(0);
+   }
+   else
+   {
+      if (reg == 0)
+         val = registers.ax & 0xff;
+      else if (reg == 1)
+         val = registers.cx & 0xff;
+      else if (reg == 2)
+         val = registers.dx & 0xff;
+      else if (reg == 3)
+         val = registers.bx & 0xff;
+      else if (reg == 4)
+         val = registers.ax >> 8;
+      else if (reg == 5)
+         val = registers.cx >> 8;
+      else if (reg == 6)
+         val = registers.dx >> 8;
+      else if (reg == 7)
+         val = registers.bx >> 8;
+      else
+         assert(0);
+   }
+   return val;
+}
+
+void setReg(int reg, int w, int val)
+{
+   if (w)
+   {
+      if (reg == 0)
+         registers.ax = val;
+      else if (reg == 1)
+         registers.cx = val;
+      else if (reg == 2)
+         registers.dx = val;
+      else if (reg == 3)
+         registers.bx = val;
+      else if (reg == 4)
+         registers.sp = val;
+      else if (reg == 5)
+         registers.bp = val;
+      else if (reg == 6)
+         registers.si = val;
+      else if (reg == 7)
+         registers.di = val;
+      else
+         assert(0);
+   }
+   else
+   {
+      if (reg == 0)
+         *(uint8_t *)&registers.ax = val;
+      else if (reg == 1)
+         *(uint8_t *)&registers.cx = val;
+      else if (reg == 2)
+         *(uint8_t *)&registers.dx = val;
+      else if (reg == 3)
+         *(uint8_t *)&registers.bx = val;
+      else if (reg == 4)
+         *(1 + (uint8_t *)&registers.ax) = val;
+      else if (reg == 5)
+         *(1 + (uint8_t *)&registers.cx) = val;
+      else if (reg == 6)
+         *(1 + (uint8_t *)&registers.dx) = val;
+      else if (reg == 7)
+         *(1 + (uint8_t *)&registers.bx) = val;
+      else
+         assert(0);
+   }
+}
+
+uint16_t getSegmentReg(int SR)
+{
+   uint16_t val = 0;
+   if (SR == 0)
+      val = registers.es;
+   else if (SR == 1)
+      val = registers.cs;
+   else if (SR == 2)
+      val = registers.ss;
+   else if (SR == 3)
+      val = registers.ds;
+   else
+      assert(0);
+   return val;
+}
+
+void setSegmentReg(int SR, uint16_t val)
+{
+   if (SR == 0)
+      registers.es = val;
+   else if (SR == 1)
+      registers.cs = val;
+   else if (SR == 2)
+      registers.ss = val;
+   else if (SR == 3)
+      registers.ds = val;
+   else
+      assert(0);
+}
+
 String RegisterNames[8][2] = {
    {{"al", 2}, {"ax", 2}},
    {{"cl", 2}, {"cx", 2}},
@@ -24,6 +181,13 @@ String EffectiveAddressTable[8] = {
    {"di", 2},
    {"bp", 2},
    {"bx", 2},
+};
+
+String SegmentRegisterNames[4] = {
+   {"es", 2},
+   {"cs", 2},
+   {"ss", 2},
+   {"ds", 2}
 };
 
 void printMem(uint8_t rm, int disp)
@@ -82,6 +246,12 @@ int decode_MOVRegReg(struct MOVRegReg *mov)
    print(RegisterNames[dst][w]);
    printf(", ");
    print(RegisterNames[src][w]);
+
+   int old_value = getReg(dst, w);
+   setReg(dst, w, getReg(src, w));
+   int new_value = getReg(dst, w);
+   printf("; 0x%x -> 0x%x", old_value, new_value);
+
    printf("\n");
 
    int instr_size = 2;
@@ -375,7 +545,14 @@ int decode_MOVImmReg(struct MOVImmReg *mov)
    printf("mov ");
    print(RegisterNames[reg][w]);
    printf(", ");
-   printf("%d", mov->datalo + w * (mov->datahi << 8));
+   int imm = mov->datalo + w * (mov->datahi << 8);
+   printf("%d", imm);
+
+   int old_value = getReg(reg, w);
+   setReg(reg, w, imm);
+   int new_value = getReg(reg, w);
+   printf("; 0x%x -> 0x%x", old_value, new_value);
+
    printf("\n");
 
    int instr_size = w ? 3 : 2;
@@ -1272,6 +1449,68 @@ int decode_JCXZ(struct JCXZ *jcxz)
    return instr_size;
 }
 
+struct MOVRegMemToSegment
+{
+   uint8_t opcode;
+   uint8_t mod0SRrm;
+   uint8_t displo;
+   uint8_t disphi;
+};
+
+int decode_MOVRegMemToSegment(struct MOVRegMemToSegment *mov)
+{
+   int instr_size = 0;
+   assert(mov->opcode == 0x8e);
+   int mod = mov->mod0SRrm >> 6;
+   int SR = (mov->mod0SRrm >> 3) & 3;
+   int rm = mov->mod0SRrm & 7;
+   assert(mod == 3); // other cases are unimplemented
+   instr_size = 2;
+
+   printf("mov ");
+   print(SegmentRegisterNames[SR]);
+   printf(", ");
+   print(RegisterNames[rm][1]);
+
+   int old_value = getSegmentReg(SR);
+   setSegmentReg(SR, getReg(rm, 1));
+   int new_value = getSegmentReg(SR);
+   printf("; 0x%x -> 0x%x", old_value, new_value);
+   printf("\n");
+   return instr_size;
+}
+
+struct MOVSegmentToRegMem
+{
+   uint8_t opcode;
+   uint8_t mod0SRrm;
+   uint8_t displo;
+   uint8_t disphi;
+};
+
+int decode_MOVSegmentToRegMem(struct MOVSegmentToRegMem *mov)
+{
+   int instr_size = 0;
+   assert(mov->opcode == 0x8c);
+   int mod = mov->mod0SRrm >> 6;
+   int SR = (mov->mod0SRrm >> 3) & 3;
+   int rm = mov->mod0SRrm & 7;
+   assert(mod == 3); // other cases are unimplemented
+   instr_size = 2;
+
+   printf("mov ");
+   print(RegisterNames[rm][1]);
+   printf(", ");
+   print(SegmentRegisterNames[SR]);
+
+   int old_value = getReg(rm, 1);
+   setReg(rm, 1, getSegmentReg(SR));
+   int new_value = getReg(rm, 1);
+   printf("; 0x%x -> 0x%x", old_value, new_value);
+   printf("\n");
+   return instr_size;
+}
+
 int decode_instruction(uint8_t *instruction)
 {
    int instr_size = 0;
@@ -1445,10 +1684,15 @@ int decode_instruction(uint8_t *instruction)
    else if (*instruction == 0xe3)
       instr_size = decode_JCXZ((struct JCXZ *)instruction);
 
+   else if (*instruction == 0x8e)
+      instr_size = decode_MOVRegMemToSegment((struct MOVRegMemToSegment *)instruction);
+
+   else if (*instruction == 0x8c)
+      instr_size = decode_MOVSegmentToRegMem((struct MOVSegmentToRegMem *)instruction);
+
    else
    {
       fprintf(stderr, "unimplemented opcode; first byte = 0x%x\n", *instruction);
-      exit(1);
    }
 
    return instr_size;
@@ -1480,9 +1724,16 @@ int main(int argc, char **argv)
    while (i < filesize)
    {
       int instr_size = decode_instruction(&filedata[i]);
-      assert(instr_size);
+      if (instr_size <= 0)
+      {
+         fprintf(stderr, "offset = %d\n", i);
+         return 1;
+      }
       i += instr_size;
    }
+
+   printf("\n; Final CPU registers\n");
+   printRegisters();
 
    free(filedata);
    return 0;
