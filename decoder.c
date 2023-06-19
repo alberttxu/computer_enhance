@@ -20,6 +20,8 @@ struct CPU_Registers
    uint16_t cs;
    uint16_t ss;
    uint16_t ds;
+   // other
+   int ip;
 } registers;
 
 struct CPU_FLAGS
@@ -61,6 +63,7 @@ void printRegisters(void)
    printf("; cs: 0x%04x\n", registers.cs);
    printf("; ss: 0x%04x\n", registers.ss);
    printf("; ds: 0x%04x\n", registers.ds);
+   printf("; ip: 0x%04x\n", registers.ip);
 }
 
 int getReg(int reg, int w)
@@ -1237,6 +1240,8 @@ int decode_JE(struct JE *je)
 {
    assert(je->opcode == 0x74);
    printf("je %d\n", je->offset);
+   if (flags.ZF)
+      registers.ip += je->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1251,6 +1256,8 @@ int decode_JNZ(struct JNZ *jnz)
 {
    assert(jnz->opcode == 0x75);
    printf("jnz %d\n", jnz->offset);
+   if (!flags.ZF)
+      registers.ip += jnz->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1265,6 +1272,8 @@ int decode_JL(struct JL *jl)
 {
    assert(jl->opcode == 0x7c);
    printf("jl %d\n", jl->offset);
+   if (flags.SF)
+      registers.ip += jl->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1279,6 +1288,8 @@ int decode_JLE(struct JLE *jle)
 {
    assert(jle->opcode == 0x7e);
    printf("jle %d\n", jle->offset);
+   if (flags.ZF || flags.SF)
+      registers.ip += jle->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1349,6 +1360,8 @@ int decode_JS(struct JS *js)
 {
    assert(js->opcode == 0x78);
    printf("js %d\n", js->offset);
+   if (flags.SF)
+      registers.ip += js->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1363,6 +1376,8 @@ int decode_JGE(struct JGE *jge)
 {
    assert(jge->opcode == 0x7d);
    printf("jge %d\n", jge->offset);
+   if (flags.ZF || !flags.SF)
+      registers.ip += jge->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1377,6 +1392,8 @@ int decode_JG(struct JG *jg)
 {
    assert(jg->opcode == 0x7f);
    printf("jg %d\n", jg->offset);
+   if (!flags.SF)
+      registers.ip += jg->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1447,6 +1464,8 @@ int decode_JNS(struct JNS *jns)
 {
    assert(jns->opcode == 0x79);
    printf("jns %d\n", jns->offset);
+   if (!flags.SF)
+      registers.ip += jns->offset;
    int instr_size = 2;
    return instr_size;
 }
@@ -1569,7 +1588,7 @@ int decode_MOVSegmentToRegMem(struct MOVSegmentToRegMem *mov)
    return instr_size;
 }
 
-int decode_instruction(uint8_t *instruction)
+void decode_instruction(uint8_t *instruction)
 {
    int instr_size = 0;
 
@@ -1751,19 +1770,21 @@ int decode_instruction(uint8_t *instruction)
    else
    {
       fprintf(stderr, "unimplemented opcode; first byte = 0x%x\n", *instruction);
+      fprintf(stderr, "offset = %d\n", registers.ip);
+      exit(1);
    }
 
-   return instr_size;
-}
-
-void unit_tests(void)
-{
-   assert(sizeof(struct MOVRegReg) == 2);
+   registers.ip += instr_size;
+   if (registers.ip < 0)
+   {
+      fprintf(stderr, "ip error\n");
+      printRegisters();
+      exit(1);
+   }
 }
 
 int main(int argc, char **argv)
 {
-   unit_tests();
    if (argc != 2)
    {
       puts("need objectfile for the 1st argument");
@@ -1778,20 +1799,17 @@ int main(int argc, char **argv)
    int filesize = readentirefile(f, filedata, BUFSIZE);
 
    puts("bits 16");
-   int i = 0;
-   while (i < filesize)
+   assert(registers.ip == 0);
+   while (registers.ip < filesize)
    {
-      int instr_size = decode_instruction(&filedata[i]);
-      if (instr_size <= 0)
-      {
-         fprintf(stderr, "offset = %d\n", i);
-         return 1;
-      }
-      i += instr_size;
+      decode_instruction(&filedata[registers.ip]);
    }
 
    printf("\n; Final CPU registers\n");
    printRegisters();
+   printf("; flags = ");
+   printFlags();
+   printf("\n");
 
    free(filedata);
    return 0;
