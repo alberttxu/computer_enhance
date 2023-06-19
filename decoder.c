@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
 #include "utils.c"
 
@@ -20,6 +21,31 @@ struct CPU_Registers
    uint16_t ss;
    uint16_t ds;
 } registers;
+
+struct CPU_FLAGS
+{
+   bool ZF;
+   bool SF;
+} flags;
+
+void setFlags(int result, int w)
+{
+   flags.ZF = result == 0;
+   if (w)
+      flags.SF = result & 0x8000;
+   else
+      flags.SF = result & 0x80;
+}
+
+void printFlags(void)
+{
+   printf("(");
+   if (flags.ZF)
+      printf("Z");
+   if (flags.SF)
+      printf("S");
+   printf(")");
+}
 
 void printRegisters(void)
 {
@@ -298,6 +324,14 @@ int decode_SUBRegReg(struct SUBRegReg *sub)
    print(RegisterNames[dst][w]);
    printf(", ");
    print(RegisterNames[src][w]);
+
+   int old_value = getReg(dst, w);
+   setReg(dst, w, old_value - getReg(src, w));
+   int new_value = getReg(dst, w);
+   setFlags(new_value, w);
+   printf("; %x -> %x, flags = ", old_value, new_value);
+   printFlags();
+
    printf("\n");
 
    int instr_size = 2;
@@ -321,6 +355,12 @@ int decode_CMPRegReg(struct CMPRegReg *cmp)
    print(RegisterNames[dst][w]);
    printf(", ");
    print(RegisterNames[src][w]);
+
+   uint16_t result = getReg(dst, w) - getReg(src, w);
+   setFlags(result, w);
+   printf("; flags = ");
+   printFlags();
+
    printf("\n");
 
    int instr_size = 2;
@@ -757,7 +797,16 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
             imm = *(uint8_t *)&add->displo;
          }
       }
-      printf(", %d\n", imm);
+      printf(", %d", imm);
+
+      int old_value = getReg(rm, w);
+      setReg(rm, w, old_value + imm);
+      int new_value = getReg(rm, w);
+      setFlags(new_value, w);
+      printf("; 0x%x -> 0x%x, flags = ", old_value, new_value);
+      printFlags();
+
+      printf("\n");
    }
    return instr_size;
 }
@@ -873,7 +922,16 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
             imm = *(uint8_t *)&sub->displo;
          }
       }
-      printf(", %d\n", imm);
+      printf(", %d", imm);
+
+      int old_value = getReg(rm, w);
+      setReg(rm, w, old_value - imm);
+      int new_value = getReg(rm, w);
+      setFlags(new_value, w);
+      printf("; 0x%x -> 0x%x, flags = ", old_value, new_value);
+      printFlags();
+
+      printf("\n");
    }
    return instr_size;
 }
