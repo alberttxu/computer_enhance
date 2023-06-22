@@ -30,6 +30,37 @@ struct CPU_FLAGS
    bool SF;
 } flags;
 
+uint8_t memory[1 >> 16];
+
+String RegisterNames[8][2] = {
+   {{"al", 2}, {"ax", 2}},
+   {{"cl", 2}, {"cx", 2}},
+   {{"dl", 2}, {"dx", 2}},
+   {{"bl", 2}, {"bx", 2}},
+   {{"ah", 2}, {"sp", 2}},
+   {{"ch", 2}, {"bp", 2}},
+   {{"dh", 2}, {"si", 2}},
+   {{"bh", 2}, {"di", 2}},
+};
+
+String EffectiveAddressRegNames[8] = {
+   {"bx+si", 5},
+   {"bx+di", 5},
+   {"bp+si", 5},
+   {"bp+di", 5},
+   {"si", 2},
+   {"di", 2},
+   {"bp", 2},
+   {"bx", 2},
+};
+
+String SegmentRegisterNames[4] = {
+   {"es", 2},
+   {"cs", 2},
+   {"ss", 2},
+   {"ds", 2}
+};
+
 void setFlags(int result, int w)
 {
    flags.ZF = result == 0;
@@ -114,6 +145,22 @@ int getReg(int reg, int w)
    return val;
 }
 
+int getRegFromName(const char *name)
+{
+   String regname = {name, 2};
+   int reg;
+   int w;
+   for (w = 0; w < 8; w++)
+   {
+      for (reg = 0; reg < 8; reg++)
+      {
+         if (StringEQ(RegisterNames[reg][w], regname))
+            return getReg(reg, w);
+      }
+   }
+   assert(0);
+}
+
 void setReg(int reg, int w, int val)
 {
    if (w)
@@ -190,39 +237,10 @@ void setSegmentReg(int SR, uint16_t val)
       assert(0);
 }
 
-String RegisterNames[8][2] = {
-   {{"al", 2}, {"ax", 2}},
-   {{"cl", 2}, {"cx", 2}},
-   {{"dl", 2}, {"dx", 2}},
-   {{"bl", 2}, {"bx", 2}},
-   {{"ah", 2}, {"sp", 2}},
-   {{"ch", 2}, {"bp", 2}},
-   {{"dh", 2}, {"si", 2}},
-   {{"bh", 2}, {"di", 2}},
-};
-
-String EffectiveAddressTable[8] = {
-   {"bx+si", 5},
-   {"bx+di", 5},
-   {"bp+si", 5},
-   {"bp+di", 5},
-   {"si", 2},
-   {"di", 2},
-   {"bp", 2},
-   {"bx", 2},
-};
-
-String SegmentRegisterNames[4] = {
-   {"es", 2},
-   {"cs", 2},
-   {"ss", 2},
-   {"ds", 2}
-};
-
 void printMem(uint8_t rm, int disp)
 {
    printf("[");
-   print(EffectiveAddressTable[rm]);
+   print(EffectiveAddressRegNames[rm]);
    if (disp > 0)
    {
       printf("+%d", disp);
@@ -232,6 +250,32 @@ void printMem(uint8_t rm, int disp)
       printf("%d", disp);
    }
    printf("]");
+}
+
+int getEffectiveAddress(int rm, int disp)
+{
+   int addr;
+   if (rm == 0)
+      addr = getRegFromName("bx") + getRegFromName("si");
+   else if (rm == 1)
+      addr = getRegFromName("bx") + getRegFromName("di");
+   else if (rm == 2)
+      addr = getRegFromName("bp") + getRegFromName("si");
+   else if (rm == 3)
+      addr = getRegFromName("bp") + getRegFromName("di");
+   else if (rm == 4)
+      addr = getRegFromName("si");
+   else if (rm == 5)
+      addr = getRegFromName("di");
+   else if (rm == 6)
+      addr = getRegFromName("bp");
+   else if (rm == 7)
+      addr = getRegFromName("bx");
+   else
+      assert(0);
+
+   addr += disp;
+   return addr;
 }
 
 struct MOVRegReg
@@ -424,16 +468,25 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
    {
       print(RegisterNames[reg][w]);
       printf(", ");
+
+      int memory_value;
       if (mod == 0 && rm == 6)
       {
          instr_size = 4;
          int directaddress = *(int16_t *)&mov->displo;
          printf("[%d]", directaddress);
+         memory_value = memory[directaddress];
       }
       else
       {
          printMem(rm, disp);
+         memory_value = getEffectiveAddress(rm, disp);
       }
+
+      int old_value = getReg(reg, w);
+      setReg(reg, w, memory_value);
+      int new_value = getReg(reg, w);
+      printf("; 0x%x -> 0x%x", old_value, new_value);
    }
    else
    {
@@ -654,36 +707,87 @@ int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
    if (mod == 0)
    {
       printf("mov ");
-      printMem(rm, 0);
-      printf(", ");
-      int imm;
+      int imm = 0;
       if (w)
       {
+         printf("word ");
+         if (rm == 6)
+         {
+            instr_size = 6;
+            uint16_t disp = *(uint16_t *)&mov->displo;
+            imm = *(int16_t *)&mov->datalo;
+            int old_value = *(uint16_t *)&memory[disp];
+            *(uint16_t *)&memory[disp] = imm;
+            int new_value = *(uint16_t *)&memory[disp];
+
+            printf("[%d]", disp);
+            printf(", %d", imm);
+            printf("; 0x%04x -> 0x%04x", old_value, new_value);
+         }
+         else
+         {
+            raiseUnimplemented();
+         }
       }
       else
       {
-         instr_size = 3;
-         imm = mov->displo;
-         printf("byte %d", imm);
+         instr_size = 2 + (w + 1);
+         imm = mov->displo + w * 256 * mov->disphi;
+
+         printf("byte ");
+         printMem(rm, 0);
+         printf(", ");
+         printf("%d", imm);
       }
       printf("\n");
    }
+
+   else if (mod == 1)
+   {
+      int imm = 0;
+      if (w)
+      {
+         instr_size = 5;
+         uint8_t disp = mov->displo;
+         imm = *(int16_t *)&mov->disphi;
+         int addr = getEffectiveAddress(rm, disp);
+         int old_value = *(uint16_t *)&memory[addr];
+         *(uint16_t *)&memory[addr] = imm;
+         int new_value = *(uint16_t *)&memory[addr];
+
+         printf("mov ");
+         printf("word ");
+         printMem(rm, disp);
+         printf(", %d", imm);
+         printf("; 0x%04x -> 0x%04x", old_value, new_value);
+      }
+      else
+      {
+         raiseUnimplemented();
+      }
+      printf("\n");
+   }
+
    else if (mod == 2)
    {
       printf("mov ");
       int disp = *(int16_t *)&mov->displo;
-      printMem(rm, disp);
-      printf(", ");
-      int imm;
+      int imm = 0;
       if (w)
       {
          instr_size = 6;
          imm = mov->datalo + 256 * mov->datahi;
-         printf("word %d", imm);
+         printf("word ");
       }
       else
       {
+         instr_size = 5;
+         imm = mov->datalo;
+         printf("byte ");
       }
+      printMem(rm, disp);
+      printf(", ");
+      printf("%d", imm);
       printf("\n");
    }
    return instr_size;
@@ -702,7 +806,7 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
 
    if (mod == 0)
    {
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -712,7 +816,7 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
             printf("word ");
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -736,12 +840,13 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
 
    else if (mod == 1)
    {
+      raiseUnimplemented();
    }
 
    else if (mod == 2)
    {
       int disp = *(int16_t *)&add->displo;
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -751,7 +856,7 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
             printf("word ");
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -776,7 +881,7 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
    else if (mod == 3)
    {
       print(RegisterNames[rm][w]);
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -785,7 +890,7 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
             imm = *(int8_t *)&add->displo;
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -827,7 +932,7 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
 
    if (mod == 0)
    {
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -837,7 +942,7 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
             printf("word ");
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -861,12 +966,13 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
 
    else if (mod == 1)
    {
+      raiseUnimplemented();
    }
 
    else if (mod == 2)
    {
       int disp = *(int16_t *)&sub->displo;
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -876,7 +982,7 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
             printf("word ");
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -901,7 +1007,7 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
    else if (mod == 3)
    {
       print(RegisterNames[rm][w]);
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -910,7 +1016,7 @@ int decode_SUBImmRegMem(struct SUBImmRegMem *sub)
             imm = *(int8_t *)&sub->displo;
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -956,7 +1062,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
       {
          instr_size = 6;
          int addr = *(uint16_t *)&cmp->displo;
-         int imm;
+         int imm = 0;
          if (w)
          {
             if (s)
@@ -983,7 +1089,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
 
       else
       {
-         int imm;
+         int imm = 0;
          if (s)
          {
             if (w)
@@ -993,7 +1099,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
                printf("word ");
             }
             else
-               assert(0);
+               raiseUnimplemented();
          }
          else
          {
@@ -1018,12 +1124,13 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
 
    else if (mod == 1)
    {
+      raiseUnimplemented();
    }
 
    else if (mod == 2)
    {
       int disp = *(int16_t *)&cmp->displo;
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -1033,7 +1140,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
             printf("word ");
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -1058,7 +1165,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
    else if (mod == 3)
    {
       print(RegisterNames[rm][w]);
-      int imm;
+      int imm = 0;
       if (s)
       {
          if (w)
@@ -1067,7 +1174,7 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
             imm = *(int8_t *)&cmp->displo;
          }
          else
-            assert(0);
+            raiseUnimplemented();
       }
       else
       {
@@ -1168,7 +1275,7 @@ int decode_ADDImmAccum(struct ADDImmAccum *add)
    int instr_size = 0;
    uint8_t w = add->opcode_w & 1;
    printf("add ");
-   int imm;
+   int imm = 0;
    if (w)
    {
       instr_size = 3;
@@ -1190,7 +1297,7 @@ int decode_SUBImmAccum(struct SUBImmAccum *sub)
    int instr_size = 0;
    uint8_t w = sub->opcode_w & 1;
    printf("sub ");
-   int imm;
+   int imm = 0;
    if (w)
    {
       instr_size = 3;
@@ -1213,7 +1320,7 @@ int decode_CMPImmAccum(struct CMPImmAccum *cmp)
    int instr_size = 0;
    uint8_t w = cmp->opcode_w & 1;
    printf("cmp ");
-   int imm;
+   int imm = 0;
    if (w)
    {
       instr_size = 3;
@@ -1775,7 +1882,7 @@ void decode_instruction(uint8_t *instruction)
    }
 
    registers.ip += instr_size;
-   if (registers.ip < 0)
+   if (registers.ip < 0 || instr_size == 0)
    {
       fprintf(stderr, "ip error\n");
       printRegisters();
