@@ -284,24 +284,6 @@ struct MOVRegReg
    uint8_t mod_reg_rm;
 };
 
-struct ADDRegReg
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-};
-
-struct SUBRegReg
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-};
-
-struct CMPRegReg
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-};
-
 int decode_MOVRegReg(struct MOVRegReg *mov)
 {
    uint8_t opcode = mov->opcode_d_w >> 2;
@@ -331,6 +313,12 @@ int decode_MOVRegReg(struct MOVRegReg *mov)
    return instr_size;
 }
 
+struct ADDRegReg
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+};
+
 int decode_ADDRegReg(struct ADDRegReg *add)
 {
    uint8_t opcode = add->opcode_d_w >> 2;
@@ -344,15 +332,29 @@ int decode_ADDRegReg(struct ADDRegReg *add)
 
    int src = d ? rm : reg;
    int dst = d ? reg : rm;
+   int old_value = getReg(dst, w);
+   setReg(dst, w, old_value + getReg(src, w));
+   int new_value = getReg(dst, w);
+   flags.ZF = new_value == 0;
+   flags.SF = new_value < 0;
+
    printf("add ");
    print(RegisterNames[dst][w]);
    printf(", ");
    print(RegisterNames[src][w]);
+   printf("; 0x%x -> 0x%x, flags = ", old_value, new_value);
+   printFlags();
    printf("\n");
 
    int instr_size = 2;
    return instr_size;
 }
+
+struct SUBRegReg
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+};
 
 int decode_SUBRegReg(struct SUBRegReg *sub)
 {
@@ -384,6 +386,12 @@ int decode_SUBRegReg(struct SUBRegReg *sub)
    int instr_size = 2;
    return instr_size;
 }
+
+struct CMPRegReg
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+};
 
 int decode_CMPRegReg(struct CMPRegReg *cmp)
 {
@@ -422,36 +430,13 @@ struct MOVRegMem
    uint8_t disphi;
 };
 
-struct ADDRegMem
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-   uint8_t displo;
-   uint8_t disphi;
-};
-
-struct SUBRegMem
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-   uint8_t displo;
-   uint8_t disphi;
-};
-
-struct CMPRegMem
-{
-   uint8_t opcode_d_w;
-   uint8_t mod_reg_rm;
-   uint8_t displo;
-   uint8_t disphi;
-};
-
 int decode_MOVRegMem(struct MOVRegMem *mov)
 {
    int instr_size = 0;
    uint8_t opcode = mov->opcode_d_w >> 2;
    assert(opcode == 0x22);
    uint8_t mod = mov->mod_reg_rm >> 6;
+   assert(mod < 3);
    instr_size = 2 + mod;
    uint8_t d = (mov->opcode_d_w >> 1) & 1;
    uint8_t w = mov->opcode_d_w & 1;
@@ -463,40 +448,64 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
    else if (mod == 2)
       disp = *(int16_t *)&mov->displo;
 
-   printf("mov ");
-   if (d)
+   if (d) // mem to reg
    {
+      printf("mov ");
       print(RegisterNames[reg][w]);
       printf(", ");
 
+      int addr;
       int memory_value;
       if (mod == 0 && rm == 6)
       {
          instr_size = 4;
-         int directaddress = *(int16_t *)&mov->displo;
-         printf("[%d]", directaddress);
-         memory_value = memory[directaddress];
+         addr = *(int16_t *)&mov->displo;
+         printf("[%d]", addr);
+         memory_value = memory[addr];
       }
       else
       {
          printMem(rm, disp);
-         memory_value = getEffectiveAddress(rm, disp);
+         addr = getEffectiveAddress(rm, disp);
+         memory_value = memory[addr];
       }
 
       int old_value = getReg(reg, w);
       setReg(reg, w, memory_value);
       int new_value = getReg(reg, w);
-      printf("; 0x%x -> 0x%x", old_value, new_value);
+      printf("; 0x%x -> 0x%x = memory[%d]", old_value, new_value, addr);
    }
-   else
+   else // reg to mem
    {
-      printMem(rm, disp);
-      printf(", ");
-      print(RegisterNames[reg][w]);
+      if (mod == 0 && rm == 6)
+      {
+         raiseUnimplemented();
+      }
+      else
+      {
+         int addr = getEffectiveAddress(rm, disp);
+         int old_value = memory[addr];
+         memory[addr] = getReg(reg, w);
+         int new_value = memory[addr];
+
+         printf("mov ");
+         printMem(rm, disp);
+         printf(", ");
+         print(RegisterNames[reg][w]);
+         printf("; memory[%d]: [0x%x] -> [0x%x]", addr, old_value, new_value);
+      }
    }
    printf("\n");
    return instr_size;
 }
+
+struct ADDRegMem
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+   uint8_t displo;
+   uint8_t disphi;
+};
 
 int decode_ADDRegMem(struct ADDRegMem *add)
 {
@@ -541,6 +550,14 @@ int decode_ADDRegMem(struct ADDRegMem *add)
    return instr_size;
 }
 
+struct SUBRegMem
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+   uint8_t displo;
+   uint8_t disphi;
+};
+
 int decode_SUBRegMem(struct SUBRegMem *sub)
 {
    int instr_size = 0;
@@ -583,6 +600,14 @@ int decode_SUBRegMem(struct SUBRegMem *sub)
    printf("\n");
    return instr_size;
 }
+
+struct CMPRegMem
+{
+   uint8_t opcode_d_w;
+   uint8_t mod_reg_rm;
+   uint8_t displo;
+   uint8_t disphi;
+};
 
 int decode_CMPRegMem(struct CMPRegMem *cmp)
 {
