@@ -30,7 +30,9 @@ struct CPU_FLAGS
    bool SF;
 } flags;
 
-uint8_t memory[1 >> 16];
+#define MEMORYSIZE 1 << 16
+
+uint8_t memory[MEMORYSIZE];
 
 String RegisterNames[8][2] = {
    {{"al", 2}, {"ax", 2}},
@@ -1939,15 +1941,12 @@ int main(int argc, char **argv)
    FILE *f = fopen(objectfile, "r");
    assert(f);
 
-   const int BUFSIZE = 1000;
-   uint8_t *filedata = malloc(BUFSIZE);
-   int filesize = readentirefile(f, filedata, BUFSIZE);
-
+   int filesize = readentirefile(f, memory, MEMORYSIZE);
    puts("bits 16");
    assert(registers.ip == 0);
    while (registers.ip < filesize)
    {
-      decode_instruction(&filedata[registers.ip]);
+      decode_instruction(&memory[registers.ip]);
    }
 
    printf("\n; Final CPU registers\n");
@@ -1956,6 +1955,12 @@ int main(int argc, char **argv)
    printFlags();
    printf("\n");
 
-   free(filedata);
+   puts("; ==== Final non-zero memory ====");
+   for (int i = 0; i < MEMORYSIZE; i++)
+   {
+      if (memory[i])
+         printf("; memory[%d] = 0x%02x\n", i, memory[i]);
+   }
+
    return 0;
 }
