@@ -524,24 +524,37 @@ int decode_ADDRegMem(struct ADDRegMem *add)
    else if (mod == 2)
       disp = *(int16_t *)&add->displo;
 
-   printf("add ");
-   if (d)
+
+   if (d) // mem to reg
    {
+      printf("add ");
       print(RegisterNames[reg][w]);
       printf(", ");
+
+      int addr;
+      int memory_value;
       if (mod == 0 && rm == 6)
       {
          instr_size = 4;
-         int directaddress = *(int16_t *)&add->displo;
-         printf("[%d]", directaddress);
+         addr = *(int16_t *)&add->displo;
+         printf("[%d]", addr);
+         memory_value = memory[addr];
       }
       else
       {
          printMem(rm, disp);
+         addr = getEffectiveAddress(rm, disp);
+         memory_value = memory[addr];
       }
+
+      int old_value = getReg(reg, w);
+      setReg(reg, w, old_value + memory_value);
+      int new_value = getReg(reg, w);
+      printf("; 0x%x -> 0x%x = memory[%d]", old_value, new_value, addr);
    }
    else
    {
+      printf("add ");
       printMem(rm, disp);
       printf(", ");
       print(RegisterNames[reg][w]);
