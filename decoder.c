@@ -156,22 +156,6 @@ int getReg(int reg, int w)
    return val;
 }
 
-int getRegFromName(const char *name)
-{
-   String regname = {name, 2};
-   int reg;
-   int w;
-   for (w = 0; w < 8; w++)
-   {
-      for (reg = 0; reg < 8; reg++)
-      {
-         if (StringEQ(RegisterNames[reg][w], regname))
-            return getReg(reg, w);
-      }
-   }
-   assert(0);
-}
-
 void setReg(int reg, int w, int val)
 {
    if (w)
@@ -267,21 +251,21 @@ int getEffectiveAddress(int rm, int disp)
 {
    int addr;
    if (rm == 0)
-      addr = getRegFromName("bx") + getRegFromName("si");
+      addr = registers.bx + registers.si;
    else if (rm == 1)
-      addr = getRegFromName("bx") + getRegFromName("di");
+      addr = registers.bx + registers.di;
    else if (rm == 2)
-      addr = getRegFromName("bp") + getRegFromName("si");
+      addr = registers.bp + registers.si;
    else if (rm == 3)
-      addr = getRegFromName("bp") + getRegFromName("di");
+      addr = registers.bp + registers.di;
    else if (rm == 4)
-      addr = getRegFromName("si");
+      addr = registers.si;
    else if (rm == 5)
-      addr = getRegFromName("di");
+      addr = registers.di;
    else if (rm == 6)
-      addr = getRegFromName("bp");
+      addr = registers.bp;
    else if (rm == 7)
-      addr = getRegFromName("bx");
+      addr = registers.bx;
    else
       assert(0);
 
@@ -799,6 +783,11 @@ int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
          printMem(rm, 0);
          printf(", ");
          printf("%d", imm);
+
+         if (simulate)
+         {
+            raiseUnimplemented();
+         }
       }
       printf("\n");
    }
@@ -871,8 +860,33 @@ int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
       printMem(rm, disp);
       printf(", ");
       printf("%d", imm);
+
+      if (simulate)
+      {
+         int addr = getEffectiveAddress(rm, disp);
+         if (w)
+         {
+            raiseUnimplemented();
+         }
+         else
+         {
+            uint8_t old_value = memory[addr];
+            memory[addr] = imm;
+            uint8_t new_value = memory[addr];
+            printf("; memory[%d]: [0x%02x] -> [0x%02x]", addr, old_value, new_value);
+         }
+      }
+
       printf("\n");
    }
+
+   else if (mod == 3)
+   {
+      raiseUnimplemented();
+   }
+   else
+      assert(0);
+
    return instr_size;
 }
 
@@ -1724,7 +1738,21 @@ struct LOOP
 int decode_LOOP(struct LOOP *loop)
 {
    assert(loop->opcode == 0xe2);
-   printf("loop %d\n", loop->offset);
+   printf("loop %d", loop->offset);
+   if (simulate)
+   {
+      int old_value = registers.cx;
+      registers.cx--;
+      int new_value = registers.cx;
+      printf("; cx: 0x%x -> 0x%x", old_value, new_value);
+      if (registers.cx)
+      {
+         registers.ip += loop->offset;
+      }
+      else
+         printf(", terminated");
+   }
+   printf("\n");
    int instr_size = 2;
    return instr_size;
 }
