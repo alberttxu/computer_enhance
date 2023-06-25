@@ -37,6 +37,12 @@ struct CPU_FLAGS
 
 uint8_t memory[MEMORYSIZE];
 
+void dumpmemory(FILE *f)
+{
+   int n = fwrite(memory, 1, MEMORYSIZE, f);
+   assert(n == MEMORYSIZE);
+}
+
 String RegisterNames[8][2] = {
    {{"al", 2}, {"ax", 2}},
    {{"cl", 2}, {"cx", 2}},
@@ -497,7 +503,10 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
          int old_value = getReg(reg, w);
          setReg(reg, w, memory_value);
          int new_value = getReg(reg, w);
-         printf("; 0x%x -> 0x%x = memory[%d]", old_value, new_value, addr);
+         if (w)
+            printf("; 0x%04x -> 0x%04x = memory[%d]", old_value, new_value, addr);
+         else
+            printf("; 0x%02x -> 0x%02x = memory[%d]", old_value, new_value, addr);
       }
    }
    else // reg to mem
@@ -519,7 +528,10 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
             int old_value = memory[addr];
             memory[addr] = getReg(reg, w);
             int new_value = memory[addr];
-            printf("; memory[%d]: [0x%x] -> [0x%x]", addr, old_value, new_value);
+            if (w)
+               printf("; memory[%d]: [0x%04x] -> [0x%04x]", addr, old_value, new_value);
+            else
+               printf("; memory[%d]: [0x%02x] -> [0x%02x]", addr, old_value, new_value);
          }
       }
    }
@@ -795,16 +807,19 @@ int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
    {
       uint8_t disp = mov->displo;
       int imm;
+      int addr;
       int old_value;
       int new_value;
 
+      printf("mov ");
       if (w)
       {
+         printf("word ");
          instr_size = 5;
          imm = *(int16_t *)&mov->disphi;
          if (simulate)
          {
-            int addr = getEffectiveAddress(rm, disp);
+            addr = getEffectiveAddress(rm, disp);
             old_value = *(uint16_t *)&memory[addr];
             *(uint16_t *)&memory[addr] = imm;
             new_value = *(uint16_t *)&memory[addr];
@@ -812,23 +827,27 @@ int decode_MOVImmRegMem(struct MOVImmRegMem *mov)
       }
       else
       {
+         printf("byte ");
          instr_size = 4;
          imm = mov->disphi;
          if (simulate)
          {
-            int addr = getEffectiveAddress(rm, disp);
+            addr = getEffectiveAddress(rm, disp);
             old_value = memory[addr];
             memory[addr] = imm;
             new_value = memory[addr];
          }
       }
 
-      printf("mov ");
-      printf("word ");
       printMem(rm, disp);
       printf(", %d", imm);
       if (simulate)
-         printf("; 0x%04x -> 0x%04x", old_value, new_value);
+      {
+         if (w)
+            printf("; [0x%04x] -> [0x%04x]", old_value, new_value);
+         else
+            printf("; memory[%d]: [0x%02x] -> [0x%02x]", addr, old_value, new_value);
+      }
       printf("\n");
    }
 
@@ -1288,8 +1307,18 @@ int decode_CMPImmRegMem(struct CMPImmRegMem *cmp)
             instr_size = 3;
             imm = *(uint8_t *)&cmp->displo;
          }
+
       }
-      printf(", %d\n", imm);
+      printf(", %d", imm);
+
+      if (simulate)
+      {
+         setFlags(getReg(rm, w) - imm, w);
+         printf("; ");
+         printFlags();
+      }
+
+      printf("\n");
    }
    return instr_size;
 }
@@ -1462,9 +1491,18 @@ struct JNZ
 int decode_JNZ(struct JNZ *jnz)
 {
    assert(jnz->opcode == 0x75);
-   printf("jnz %d\n", jnz->offset);
-   if (simulate && !flags.ZF)
-      registers.ip += jnz->offset;
+   printf("jnz %d", jnz->offset);
+   if (simulate)
+   {
+      if (!flags.ZF)
+      {
+         registers.ip += jnz->offset;
+         printf("; taken");
+      }
+      else
+         printf("; not taken");
+   }
+   printf("\n");
    int instr_size = 2;
    return instr_size;
 }
@@ -2036,6 +2074,10 @@ int main(int argc, char **argv)
       if (memory[i])
          printf("; memory[%d] = 0x%02x\n", i, memory[i]);
    }
+
+   FILE *outputfile = fopen("memorydump.data", "w");
+   assert(outputfile);
+   dumpmemory(outputfile);
 
    return 0;
 }

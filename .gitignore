@@ -8,7 +8,9 @@ listing41_jumps
 listing41_nojumps
 out
 out.nasm
+out.txt
 tempfile
 tempfile.nasm
 test
 test.nasm
+memorydump.data
