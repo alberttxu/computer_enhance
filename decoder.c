@@ -7,6 +7,8 @@
 #include "utils.c"
 
 bool simulate = false;
+bool showclockcycles = false;
+int totalcycles = 0;
 
 struct CPU_Registers
 {
@@ -273,6 +275,55 @@ int getEffectiveAddress(int rm, int disp)
    return addr;
 }
 
+int getEffectiveAddressCycles(int rm, int disp)
+{
+   int clocks;
+   if (disp == 0)
+   {
+      if (rm == 0)
+         clocks = 7;
+      else if (rm == 1)
+         clocks = 8;
+      else if (rm == 2)
+         clocks = 8;
+      else if (rm == 3)
+         clocks = 7;
+      else if (rm == 4)
+         clocks = 5;
+      else if (rm == 5)
+         clocks = 5;
+      else if (rm == 6)
+         clocks = 5;
+      else if (rm == 7)
+         clocks = 5;
+      else
+         assert(0);
+   }
+
+   else
+   {
+      if (rm == 0)
+         clocks = 11;
+      else if (rm == 1)
+         clocks = 12;
+      else if (rm == 2)
+         clocks = 12;
+      else if (rm == 3)
+         clocks = 11;
+      else if (rm == 4)
+         clocks = 9;
+      else if (rm == 5)
+         clocks = 9;
+      else if (rm == 6)
+         clocks = 9;
+      else if (rm == 7)
+         clocks = 9;
+      else
+         assert(0);
+   }
+   return clocks;
+}
+
 struct MOVRegReg
 {
    uint8_t opcode_d_w;
@@ -303,6 +354,13 @@ int decode_MOVRegReg(struct MOVRegReg *mov)
       setReg(dst, w, getReg(src, w));
       int new_value = getReg(dst, w);
       printf("; 0x%x -> 0x%x", old_value, new_value);
+   }
+
+   if (showclockcycles)
+   {
+      int clocks = 2;
+      totalcycles += clocks;
+      printf("; %d clocks, total = %d", clocks, totalcycles);
    }
 
    printf("\n");
@@ -344,6 +402,13 @@ int decode_ADDRegReg(struct ADDRegReg *add)
       flags.SF = new_value < 0;
       printf("; 0x%x -> 0x%x, flags = ", old_value, new_value);
       printFlags();
+   }
+
+   if (showclockcycles)
+   {
+      int clocks = 3;
+      totalcycles += clocks;
+      printf("; %d clocks, total = %d", clocks, totalcycles);
    }
 
    printf("\n");
@@ -464,21 +529,36 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
 
       int addr;
       int memory_value;
+      int clocks = 0;
       if (mod == 0 && rm == 6)
       {
          instr_size = 4;
          addr = *(int16_t *)&mov->displo;
          printf("[%d]", addr);
+
          if (simulate)
             memory_value = memory[addr];
+
+         if (showclockcycles)
+         {
+            clocks = 8 + 6;
+            totalcycles += clocks;
+         }
       }
       else
       {
          printMem(rm, disp);
+
          if (simulate)
          {
             addr = getEffectiveAddress(rm, disp);
             memory_value = memory[addr];
+         }
+
+         if (showclockcycles)
+         {
+            clocks = 8 + getEffectiveAddressCycles(rm, disp);
+            totalcycles += clocks;
          }
       }
 
@@ -492,6 +572,9 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
          else
             printf("; 0x%02x -> 0x%02x = memory[%d]", old_value, new_value, addr);
       }
+
+      if (showclockcycles)
+         printf("; %d clocks, total = %d", clocks, totalcycles);
    }
    else // reg to mem
    {
@@ -516,6 +599,13 @@ int decode_MOVRegMem(struct MOVRegMem *mov)
                printf("; memory[%d]: [0x%04x] -> [0x%04x]", addr, old_value, new_value);
             else
                printf("; memory[%d]: [0x%02x] -> [0x%02x]", addr, old_value, new_value);
+         }
+
+         if (showclockcycles)
+         {
+            int clocks = 9 + getEffectiveAddressCycles(rm, disp);
+            totalcycles += clocks;
+            printf("; %d clocks, total = %d", clocks, totalcycles);
          }
       }
    }
@@ -589,6 +679,13 @@ int decode_ADDRegMem(struct ADDRegMem *add)
       printMem(rm, disp);
       printf(", ");
       print(RegisterNames[reg][w]);
+
+      if (showclockcycles)
+      {
+         int clocks = 16 + getEffectiveAddressCycles(rm, disp);
+         totalcycles += clocks;
+         printf("; %d clocks, total = %d", clocks, totalcycles);
+      }
    }
    printf("\n");
    return instr_size;
@@ -719,6 +816,13 @@ int decode_MOVImmReg(struct MOVImmReg *mov)
       setReg(reg, w, imm);
       int new_value = getReg(reg, w);
       printf("; 0x%x -> 0x%x", old_value, new_value);
+   }
+
+   if (showclockcycles)
+   {
+      int clocks = 4;
+      totalcycles += clocks;
+      printf("; %d clocks, total = %d", clocks, totalcycles);
    }
 
    printf("\n");
@@ -1022,6 +1126,13 @@ int decode_ADDImmRegMem(struct ADDImmRegMem *add)
          setFlags(new_value, w);
          printf("; 0x%x -> 0x%x, flags = ", old_value, new_value);
          printFlags();
+      }
+
+      if (showclockcycles)
+      {
+         int clocks = 4;
+         totalcycles += clocks;
+         printf("; %d clocks, total = %d", clocks, totalcycles);
       }
 
       printf("\n");
@@ -2070,42 +2181,52 @@ int main(int argc, char **argv)
       puts("need objectfile for the 1st argument");
       exit(1);
    }
-   if (argc > 2 && strncmp(argv[1], "-exec", 5) == 0)
+
+   if (argc > 2)
    {
-      simulate = true;
+      for (int i = 1; i < argc-1; i += 1)
+      {
+         if (strncmp(argv[i], "-exec", 5) == 0)
+            simulate = true;
+         else if (strncmp(argv[i], "-cycles", 7) == 0)
+            showclockcycles = true;
+      }
    }
+
    objectfile = argv[argc-1];
 
    FILE *f = fopen(objectfile, "r");
    assert(f);
 
-   int filesize = readentirefile(f, memory, MEMORYSIZE);
+   int codesize = readentirefile(f, memory, MEMORYSIZE);
    puts("bits 16");
    assert(registers.ip == 0);
-   while (registers.ip < filesize)
+   while (registers.ip < codesize)
    {
       decode_instruction(&memory[registers.ip]);
    }
 
-   if (!simulate)
-      return 0;
-
-   printf("\n; Final CPU registers\n");
-   printRegisters();
-   printf("; flags = ");
-   printFlags();
-   printf("\n");
-
-   puts("; ==== Final non-zero memory ====");
-   for (int i = 0; i < MEMORYSIZE; i++)
+   if (simulate)
    {
-      if (memory[i])
-         printf("; memory[%d] = 0x%02x\n", i, memory[i]);
-   }
+      printf("\n; Final CPU registers\n");
+      printRegisters();
+      printf("; flags = ");
+      printFlags();
+      printf("\n");
 
-   FILE *outputfile = fopen("memorydump.data", "w");
-   assert(outputfile);
-   dumpmemory(outputfile);
+      /*
+      puts("; ==== Final non-zero memory ====");
+      for (int i = 0; i < MEMORYSIZE; i++)
+      {
+         if (memory[i])
+            printf("; memory[%d] = 0x%02x\n", i, memory[i]);
+      }
+      */
+
+      FILE *outputfile = fopen("memorydump.data", "w");
+      assert(outputfile);
+      dumpmemory(outputfile);
+   }
 
    return 0;
 }
