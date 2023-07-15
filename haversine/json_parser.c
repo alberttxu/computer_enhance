@@ -49,7 +49,7 @@ Token readtoken(FILE* f, char until)
    return tk;
 }
 
-void parse_jsonfile(FILE* f)
+double parse_jsonfile(FILE* f)
 {
    char c;
    bool arraystart = false;
@@ -110,9 +110,34 @@ void parse_jsonfile(FILE* f)
       }
    }
 
+   puts("jsonfile");
    printf("# of entries: %d\n", num_entries);
-   printf("avg: %f\n", sum / num_entries);
-   fclose(f);
+   double avg = sum / num_entries;
+   printf("avg: %f\n", avg);
+   return avg;
+}
+
+double parse_answersfile(FILE* f)
+{
+   double sum = 0;
+   int num_entries = 0;
+   double entry[4];
+
+   while (fread(entry, 4 * sizeof(double), 1, f))
+   {
+      double x0 = entry[0];
+      double y0 = entry[1];
+      double x1 = entry[2];
+      double y1 = entry[3];
+      sum += ReferenceHaversine(x0, y0, x1, y1, 6372.8);
+      num_entries += 1;
+   }
+
+   puts("answersfile");
+   printf("# of entries: %d\n", num_entries);
+   double avg = sum / num_entries;
+   printf("avg: %f\n", avg);
+   return avg;
 }
 
 int main(int argc, char** argv)
@@ -126,15 +151,18 @@ int main(int argc, char** argv)
 
    FILE* jsonfile = fopen(argv[1], "r");
    assert(jsonfile);
-   parse_jsonfile(jsonfile);
+   double avg_json = parse_jsonfile(jsonfile);
+   fclose(jsonfile);
 
    FILE* answersfile = NULL;
    if (argc == 3)
    {
-      answersfile = fopen(argv[1], "r");
+      answersfile = fopen(argv[2], "r");
       assert(answersfile);
-
+      double avg_answer = parse_answersfile(answersfile);
       fclose(answersfile);
+
+      printf("error = %f\n", avg_answer - avg_json);
    }
 
    return 0;
