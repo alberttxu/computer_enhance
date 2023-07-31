@@ -8,12 +8,14 @@
 typedef uint64_t u64;
 typedef double f64;
 
-static u64 GetOSTimerFreq(void)
+static inline
+u64 GetOSTimerFreq(void)
 {
 	return 1000000;
 }
 
-static u64 ReadOSTimer(void)
+static inline
+u64 ReadOSTimer(void)
 {
 	// NOTE(casey): The "struct" keyword is not necessary here when compiling in C++,
 	// but just in case anyone is using this file from C, I include it.
@@ -57,27 +59,16 @@ u64 getcpufreq(void)
    return CPUFreq;
 }
 
-static inline
-f64 elapsedtime(u64 cpustart, u64 cpuend)
-{
-   return (f64)(cpuend - cpustart) / getcpufreq();
-}
-
-static inline
-u64 elapsedticks(u64 cpustart, u64 cpuend)
-{
-   return cpuend - cpustart;
-}
-
-
 uint64_t t_profilerstart;
 uint64_t t_profilerend;
 
+static inline
 void startprofiler()
 {
    t_profilerstart = ReadCPUTimer();
 }
 
+static inline
 void stopprofiler()
 {
    t_profilerend = ReadCPUTimer();
@@ -99,6 +90,7 @@ constexpr int maxstacksize = 100;
 int zonestack[maxstacksize];
 int zonestacksize = 0;
 
+static inline
 void pushzone(int zoneid)
 {
    assert(zonestacksize < maxstacksize);
@@ -106,6 +98,7 @@ void pushzone(int zoneid)
    zonestacksize += 1;
 }
 
+static inline
 void popzone()
 {
    assert(zonestacksize > 0);
@@ -164,10 +157,12 @@ struct ZoneTiming
 #define TimeBlock(name) CreateZoneTiming(__COUNTER__, name)
 #define TimeFunction TimeBlock(__func__)
 
+
 void print_zone_statistics()
 {
    puts("==== profile results ====");
-   printf("profiler time: %f s\n", (f64)(t_profilerend - t_profilerstart) / getcpufreq());
+   u64 cpufreq = getcpufreq();
+   printf("profiler time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
    for (int i = 0; i < maxzones; i += 1)
    {
       if (zones[i].hitcount == 0)
@@ -175,8 +170,8 @@ void print_zone_statistics()
 
       printf("%s: %f s total, %f s (%.2f %%) exclusive, %d hits\n",
             zones[i].name,
-            (f64)zones[i].total_time / getcpufreq(),
-            (f64)zones[i].exclusive_time / getcpufreq(),
+            (f64)zones[i].total_time / cpufreq,
+            (f64)zones[i].exclusive_time / cpufreq,
             100.0 * zones[i].exclusive_time / (t_profilerend - t_profilerstart),
             zones[i].hitcount);
    }
