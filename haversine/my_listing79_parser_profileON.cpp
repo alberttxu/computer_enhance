@@ -18,8 +18,6 @@ typedef struct {
 
 Token newToken()
 {
-   TimeFunction;
-
    Token tk;
    tk.size = 0;
    return tk;
@@ -27,8 +25,6 @@ Token newToken()
 
 void pushchar(Token* tk, char c)
 {
-   TimeFunction;
-
    assert(tk->size < MAXTOKENSIZE);
    tk->data[tk->size] = c;
    tk->size += 1;
@@ -36,8 +32,6 @@ void pushchar(Token* tk, char c)
 
 void printToken(Token tk)
 {
-   TimeFunction;
-
    for (size_t i = 0; i < tk.size; i++)
    {
       printf("%c", tk.data[i]);
@@ -46,8 +40,6 @@ void printToken(Token tk)
 
 Token readtoken(FILE* f, char until)
 {
-   TimeFunction;
-
    Token tk = newToken();
 
    char c;
