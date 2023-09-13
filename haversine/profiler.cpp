@@ -59,8 +59,8 @@ u64 getcpufreq(void)
    return CPUFreq;
 }
 
-uint64_t t_profilerstart;
-uint64_t t_profilerend;
+static u64 t_profilerstart;
+static u64 t_profilerend;
 
 static inline
 void startprofiler()
@@ -84,25 +84,25 @@ struct Zone
 };
 
 constexpr int maxzones = 20;
-Zone zones[maxzones];
+static Zone zones[maxzones];
 
 constexpr int maxstacksize = 100;
-int zonestack[maxstacksize];
-int zonestacksize = 0;
+static int activezones[maxstacksize];
+static int numactivezones = 0;
 
 static inline
 void pushzone(int zoneid)
 {
-   assert(zonestacksize < maxstacksize);
-   zonestack[zonestacksize] = zoneid;
-   zonestacksize += 1;
+   assert(numactivezones < maxstacksize);
+   activezones[numactivezones] = zoneid;
+   numactivezones += 1;
 }
 
 static inline
 void popzone()
 {
-   assert(zonestacksize > 0);
-   zonestacksize -= 1;
+   assert(numactivezones > 0);
+   numactivezones -= 1;
 }
 
 struct ZoneTiming
@@ -116,11 +116,7 @@ struct ZoneTiming
       zoneidx = id;
       pushzone(id);
       Zone *curzone = &zones[id];
-
-      if (curzone->hitcount == 0)
-      {
-         curzone->name = name;
-      }
+      curzone->name = name;
       curzone->hitcount += 1;
       curzone->activecount += 1;
       t_start = ReadCPUTimer();
@@ -138,9 +134,9 @@ struct ZoneTiming
       }
 
       curzone->exclusive_time += duration; // children will do subtraction
-      if (zonestacksize > 1)
+      if (numactivezones > 1)
       {
-         int parentid = zonestack[zonestacksize - 2];
+         int parentid = activezones[numactivezones - 2];
          Zone *parent = &zones[parentid];
          parent->exclusive_time -= duration;
       }
@@ -157,22 +153,28 @@ struct ZoneTiming
 #define TimeBlock(name) CreateZoneTiming(__COUNTER__, name)
 #define TimeFunction TimeBlock(__func__)
 
-
+static inline
 void print_zone_statistics()
 {
    puts("==== profile results ====");
    u64 cpufreq = getcpufreq();
-   printf("profiler time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
+   printf("profile time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
    for (int i = 0; i < maxzones; i += 1)
    {
       if (zones[i].hitcount == 0)
          continue;
 
-      printf("%s: %f s total, %f s (%.2f %%) exclusive, %d hits\n",
+      printf("%10d  %-18s: %llu (%.2f %%",
+            zones[i].hitcount,
             zones[i].name,
-            (f64)zones[i].total_time / cpufreq,
-            (f64)zones[i].exclusive_time / cpufreq,
-            100.0 * zones[i].exclusive_time / (t_profilerend - t_profilerstart),
-            zones[i].hitcount);
+            zones[i].exclusive_time,
+            100.0 * (f64)zones[i].exclusive_time / (t_profilerend - t_profilerstart)
+            );
+      if (zones[i].exclusive_time != zones[i].total_time)
+      {
+         printf(", %.2f %% w/children",
+            100.0 * (f64)zones[i].total_time / (t_profilerend - t_profilerstart));
+      }
+      printf(")\n");
    }
 }
