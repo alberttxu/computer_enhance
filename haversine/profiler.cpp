@@ -158,7 +158,7 @@ void print_zone_statistics()
 {
    puts("==== profile results ====");
    u64 cpufreq = getcpufreq();
-   printf("profile time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
+   printf("Total time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
    for (int i = 0; i < maxzones; i += 1)
    {
       if (zones[i].hitcount == 0)
