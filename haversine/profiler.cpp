@@ -74,6 +74,8 @@ void stopprofiler()
    t_profilerend = ReadCPUTimer();
 }
 
+#ifdef ENABLE_PROFILER
+
 struct Zone
 {
    const char *name;
@@ -153,12 +155,20 @@ struct ZoneTiming
 #define TimeBlock(name) CreateZoneTiming(__COUNTER__, name)
 #define TimeFunction TimeBlock(__func__)
 
+#else
+
+#define TimeBlock(name)
+#define TimeFunction
+
+#endif
+
 static inline
 void print_zone_statistics()
 {
    puts("==== profile results ====");
    u64 cpufreq = getcpufreq();
    printf("Total time: %f s\n", (f64)(t_profilerend - t_profilerstart) / cpufreq);
+#ifdef ENABLE_PROFILER
    for (int i = 0; i < maxzones; i += 1)
    {
       if (zones[i].hitcount == 0)
@@ -177,4 +187,5 @@ void print_zone_statistics()
       }
       printf(")\n");
    }
+#endif
 }
