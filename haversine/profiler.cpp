@@ -164,7 +164,7 @@ void print_zone_statistics()
       if (zones[i].hitcount == 0)
          continue;
 
-      printf("%10d  %-18s: %llu (%.2f %%",
+      printf("%10d  %-18s: %10llu (%.2f %%",
             zones[i].hitcount,
             zones[i].name,
             zones[i].exclusive_time,
@@ -172,7 +172,7 @@ void print_zone_statistics()
             );
       if (zones[i].exclusive_time != zones[i].total_time)
       {
-         printf(", %.2f %% w/children",
+         printf(", %.2f %% w/subzones",
             100.0 * (f64)zones[i].total_time / (t_profilerend - t_profilerstart));
       }
       printf(")\n");
